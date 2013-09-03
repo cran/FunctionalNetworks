@@ -1,0 +1,486 @@
+%\VignetteIndexEntry{FunctionalNetwokrs: An Algorithm for Gene and Gene Set Network Inference.}
+%\VignetteDepends{}
+%\VignetteSuests{}
+%\VignetteKeywords{Networks, GeneExpression, Driver Gene Sets}
+%\VignettePackage{}
+
+\documentclass[12pt]{article}
+
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage[numbers]{natbib}
+\usepackage[american]{babel}
+\usepackage{authblk}
+\usepackage{graphicx}
+\usepackage{epstopdf}
+\usepackage{Sweave}
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\textfraction}{0.1}
+\usepackage{tikz}
+\usepackage[utf8]{inputenc}
+
+\textwidth=6.2in
+\textheight=8.5in
+%\parskip=.3cm
+\oddsidemargin=.1in
+\evensidemargin=.1in
+\headheight=-.3in
+
+%------------------------------------------------------------
+% newcommand
+%------------------------------------------------------------
+\newcommand{\scscst}{\scriptscriptstyle}
+\newcommand{\scst}{\scriptstyle}
+\newcommand{\Robject}[1]{{\texttt{#1}}}
+\newcommand{\Rfunction}[1]{{\texttt{#1}}}
+\newcommand{\Rclass}[1]{\textit{#1}}
+\newcommand{\Rpackage}[1]{\textit{#1}}
+\newcommand{\Rexpression}[1]{\texttt{#1}}
+\newcommand{\Rmethod}[1]{{\texttt{#1}}}
+\newcommand{\Rfunarg}[1]{{\texttt{#1}}}
+
+\begin{document}
+\input{FunctionalNetworks-concordance}
+
+%------------------------------------------------------------
+\title{\vspace{-2cm}\Rpackage{FunctionalNetworks}: An Algorithm for Gene and Gene Set Network Inference.}
+%------------------------------------------------------------
+\author[1]{Alejandro Quiroz-Z\'{a}rate}
+\author[2]{Benjamin Haibe-Kains}
+\author[3]{Hugo Aerts}
+\author[1]{John Quackenbush}
+
+\affil[1]{Biostatistics and Computational Biology, Dana-Farber Cancer Institute, Boston, Massachusetts, United States of America.}
+\affil[2]{Bioinformatics and Computational Genomics Laboratory, Institut de Recherches Cliniques de Montr\'{e}al, Montreal, Quebec, Canada.}
+\affil[3]{Harvard Medical School, Boston, Massachusetts, United States of America}
+
+
+
+%<<setup,echo=FALSE>>=
+%library(pgfSweave)
+%setCacheDir("cache")
+%options(keep.source=TRUE)
+%@
+
+\maketitle
+\tableofcontents
+
+%------------------------------------------------------------
+\clearpage
+\section{Introduction}
+%------------------------------------------------------------ 
+The \Rpackage{FunctionalNetwork} package provides an algorithm to infer networks at a gene and gene set level. This package includes (i) functions to perform network inference (ii) examples to extract and visualize the results of such comparisons.\\
+The \Rpackage{FunctionalNetwork} package provides functions to implement the network algorithm to infer gene and gene set networks on datasets with cross-sectional or time series design.
+%------------------------------------------------------------
+\subsection{Installation}
+%------------------------------------------------------------ 
+\Rpackage{FunctionalNetworks} requires \Rpackage{R} (>= 2.10.0) installed. To install 	 	
+\Rpackage{FunctionalNetworks}, source biocLite from bioconductor:
+\begin{Schunk}
+\begin{Sinput}
+> source("http://bioconductor.org/biocLite.R")
+> biocLite("FunctionalNetworks")
+\end{Sinput}
+\end{Schunk}
+Load the \Rpackage{FunctionalNetworks}, into your current workspace:
+\begin{Schunk}
+\begin{Sinput}
+> library(FunctionalNetworks)
+\end{Sinput}
+\end{Schunk}
+%------------------------------------------------------------
+\subsection{Further help}
+%------------------------------------------------------------ 
+To view the \Rpackage{FunctionalNetworks} description and a summary of all the functions within \Rpackage{FunctionalNetworks}, type the following:
+\begin{Schunk}
+\begin{Sinput}
+> library(help=FunctionalNetworks)
+\end{Sinput}
+\end{Schunk}
+%------------------------------------------------------------
+\subsection{Citing}
+%------------------------------------------------------------ 
+We are delighted if you use this package. Please do email us if you find a bug or have a suggestion.  We would be very grateful if you could cite:\\
+Quiroz-Zarate A, Haibe-Kains B and Quackenbush J (2013). \textit{Manuscript in preparation}.
+%------------------------------------------------------------
+\section{An application in Breast cancer.}
+%------------------------------------------------------------ 
+We will very briefly demonstrate the use of some functions in \Rpackage{FunctionalNetworks} by providing its application on a cross-sectional dataset.\\
+We use the \Rpackage{breastCancerVDX} data library from Bioconductor for demonstration purposes under a cross-sectional design. This data set corresponds to the data set from \cite{Minn2007}. Minn, AJ  and colleagues used Affymetrix U133A Gene Chips to profile gene expression in $286$ fresh-frozen tumor samples from patients with lymph-node-negative breast cancer who were treated during $1980-95$, but who did not receive systemic neoadjuvant or adjuvant therapy. These samples correspond from the data set used in \cite{Wang2005} with GEO reference accession number GSE2034, from the tumor bank at the Erasmus Medical Center in Rotterdam, Netherlands. An additional $58$ estrogen receptor-negative samples were added from \cite{Minn2007} GEO (GSE5327). In total $209$ tumor samples are classified as ER+ and $135$ as ER-. Even though this data set comes from a $5$-year follow-up design, the way the data is conceived for this analysis is cross-sectional.\\
+%%------------------------------------------------------------
+\subsection{Example: Data analysis under a cross-sectional setting.}
+%%------------------------------------------------------------ 
+This is an example on how to perform an analysis with the proposed method in \cite{Quiroz2013} for a data set with cross-sectional design. This example is divided in two parts. The data preparation and the execution of the network algorithm.
+%------------------------------------------------------------
+\subsubsection{Data preprocessing stage}
+%------------------------------------------------------------ 
+The original gene expression data set Minn AJ and colleagues \cite{Minn2007} has a U133A Affymetrix platform. The normalized data set was saved to the variable \Robject{vdx} in the \Rpackage{breastCancerVDX} data library from Bioconductor. 
+\footnotesize
+\begin{Schunk}
+\begin{Sinput}
+> library(breastCancerVDX)
+> library(Biobase)
+> data(vdx)
+> gene.data=exprs(vdx)   # Gene expression of the package
+> vdx.annot=fData(vdx)   # Annotation associated to the dataset
+> vdx.clinc=pData(vdx)   # Clinical information associated to the dataset 
+> # Identifying the sample identifiers associated to ER+ and ER- breast cancer
+> er.pos=which(vdx.clinc$er==1)
+> er.neg=which(vdx.clinc$er==0)
+> # Checking if the probeset are ordered with respect to the dataset
+> all(rownames(gene.data)==as.character(vdx.annot[,1]))  
+\end{Sinput}
+\begin{Soutput}
+[1] TRUE
+\end{Soutput}
+\begin{Sinput}
+> # Checking if the sample identifiers are order with respect to the dataset
+> all(colnames(gene.data)==as.character(vdx.clinc[,1]))  
+\end{Sinput}
+\begin{Soutput}
+[1] TRUE
+\end{Soutput}
+\begin{Sinput}
+> # Changing the row identifiers to the gene identifiers of interest
+> rownames(gene.data)=as.character(vdx.annot[,2])        
+> vec.gene=NULL
+> vec.ids=NULL
+> for(i in 1:dim(vdx.annot)[1])
++ {
++   aux=strsplit(gsub("[^[:alnum:] ]"," ",vdx.annot[i,3])," ")
++ 	aux.num=unlist(lapply(aux,nchar))
++ 	aux=aux[[1]][which(aux.num!=0)]
++ 	aux.ids=rep(i,length(aux))
++  	vec.ids=c(vec.ids,aux.ids)	
++     	vec.gene=c(vec.gene,aux)
++ }
+> which.erase=which(is.na(vec.gene)==T)
+> vec.gene=vec.gene[-which.erase]
+> vec.ids=vec.ids[-which.erase]
+> unique.genes=sort(unique(vec.gene))
+> # Erase the first 26, because they are not reported in GO
+> unique.genes=unique.genes[-seq(1,26)] 
+> #= Because we have several measurements for a gene, we filter the genes
+> # Function to obtain the genes with highest variabilty 
+> indices=unlist(lapply(unique.genes,function(x){quienes=vec.gene==x;aux=which(quienes==T)
++ 	     aux.2=vec.ids[aux] 
++          if(length(aux)>1){
++          	    aux.2=vec.ids[aux]  
++  				var.r = apply(gene.data[aux.2,],1,var)
++ 				aux.2=aux.2[which.max(var.r)]};return(aux.2)})) 
+> gene.data=gene.data[indices,]   # Final genes to keep
+> rownames(gene.data)=unique.genes # Assign the gene symbols
+\end{Sinput}
+\end{Schunk}
+\normalsize 
+In order to implement the Network inference algorithm, there are some datasets that need to be generated from the gene expression data we have just created: \Robject{gene.data}. At this stage we will use the function \Rfunction{data.generation} from the \Rpackage{FunctionalNetwork} package. For this example it is assumed that the gmt file containing the Molecular Functions (MF) ontology from GO is stored in the path: "/Users/MyLapTop/Netwokrs/c5.mf.v4.0.symbols.gmt". The "c5.mf.v4.0.symbols.gmt" file can be dowloaded from the MSigDB web site:\\
+"http://www.broadinstitute.org/gsea/msigdb/index.jsp" 
+\footnotesize
+\begin{Schunk}
+\begin{Sinput}
+> gmt.file.path="/Users/MyLapTop/Netwokrs/c5.mf.v4.0.symbols.gmt"
+> min.gene.set.size=5
+> data4network=data.generation(gmt.file.path,gene.data,er.neg,min.gene.set.size)
+\end{Sinput}
+\end{Schunk}
+\normalsize
+Before we estimated the networks, there is a crucial step: the computation of the Bayesian Information Criteria (BIC) for all the possible associations among genes and among gene sets \cite{Quiroz2013}. This is done before the network computation step
+\footnotesize
+\begin{Schunk}
+\begin{Sinput}
+> gene.data=data4network$gene.data
+> affy.loc=data4network$affy.loc
+> set.data=data4network$set.data
+> bic4network=bic.generation(gene.data,affy.loc,set.data)
+\end{Sinput}
+\end{Schunk}
+\normalsize
+%------------------------------------------------------------
+\subsubsection{Network estimation}
+%------------------------------------------------------------ 
+To perform the network estimation, the results of the functions \Rfunction{data.generation} and \Rfunction{bic.generation} are needed. It has to be noted that the calculation of the BIC at the gene and gene set level is very time consuming. So only for purposes of this example we generated toy datasets. These toy datasets are based on a random selection of $5$ of the genes from the original \Robject{gene.data}. These toy datasets from the application of the functions \Rfunction{data.generation} and \Rfunction{bic.generation} are stored in \Robject{data.4.toy.example} and \Robject{bic.4.toy.network} on this package. In total there are $216$ genes considered for the gene network, (see \Robject{affy.loc} in \Robject{bic.4.toy.network}) and a toltal of 62 gene sets for the gene set network (see \Robject{set.data} in \Robject{data.4.toy.network})
+\footnotesize
+\begin{Schunk}
+\begin{Sinput}
+> library(FunctionalNetworks)
+> data(data.4.toy.network,package="FunctionalNetworks")
+> data(bic.4.toy.network,package="FunctionalNetworks")
+> nsim=1000
+> burn=100
+> network.toy.estimation=network.estimation(nsim,burn,data.4.toy.network,bic.4.toy.network)
+\end{Sinput}
+\begin{Soutput}
+Percentage of iterations completed: 1 
+Percentage of iterations completed: 2 
+Percentage of iterations completed: 3 
+Percentage of iterations completed: 4 
+Percentage of iterations completed: 5 
+Percentage of iterations completed: 6 
+Percentage of iterations completed: 7 
+Percentage of iterations completed: 8 
+Percentage of iterations completed: 9 
+Percentage of iterations completed: 10 
+Percentage of iterations completed: 11 
+Percentage of iterations completed: 12 
+Percentage of iterations completed: 13 
+Percentage of iterations completed: 14 
+Percentage of iterations completed: 15 
+Percentage of iterations completed: 16 
+Percentage of iterations completed: 17 
+Percentage of iterations completed: 18 
+Percentage of iterations completed: 19 
+Percentage of iterations completed: 20 
+Percentage of iterations completed: 21 
+Percentage of iterations completed: 22 
+Percentage of iterations completed: 23 
+Percentage of iterations completed: 24 
+Percentage of iterations completed: 25 
+Percentage of iterations completed: 26 
+Percentage of iterations completed: 27 
+Percentage of iterations completed: 28 
+Percentage of iterations completed: 29 
+Percentage of iterations completed: 30 
+Percentage of iterations completed: 31 
+Percentage of iterations completed: 32 
+Percentage of iterations completed: 33 
+Percentage of iterations completed: 34 
+Percentage of iterations completed: 35 
+Percentage of iterations completed: 36 
+Percentage of iterations completed: 37 
+Percentage of iterations completed: 38 
+Percentage of iterations completed: 39 
+Percentage of iterations completed: 40 
+Percentage of iterations completed: 41 
+Percentage of iterations completed: 42 
+Percentage of iterations completed: 43 
+Percentage of iterations completed: 44 
+Percentage of iterations completed: 45 
+Percentage of iterations completed: 46 
+Percentage of iterations completed: 47 
+Percentage of iterations completed: 48 
+Percentage of iterations completed: 49 
+Percentage of iterations completed: 50 
+Percentage of iterations completed: 51 
+Percentage of iterations completed: 52 
+Percentage of iterations completed: 53 
+Percentage of iterations completed: 54 
+Percentage of iterations completed: 55 
+Percentage of iterations completed: 56 
+Percentage of iterations completed: 57 
+Percentage of iterations completed: 58 
+Percentage of iterations completed: 59 
+Percentage of iterations completed: 60 
+Percentage of iterations completed: 61 
+Percentage of iterations completed: 62 
+Percentage of iterations completed: 63 
+Percentage of iterations completed: 64 
+Percentage of iterations completed: 65 
+Percentage of iterations completed: 66 
+Percentage of iterations completed: 67 
+Percentage of iterations completed: 68 
+Percentage of iterations completed: 69 
+Percentage of iterations completed: 70 
+Percentage of iterations completed: 71 
+Percentage of iterations completed: 72 
+Percentage of iterations completed: 73 
+Percentage of iterations completed: 74 
+Percentage of iterations completed: 75 
+Percentage of iterations completed: 76 
+Percentage of iterations completed: 77 
+Percentage of iterations completed: 78 
+Percentage of iterations completed: 79 
+Percentage of iterations completed: 80 
+Percentage of iterations completed: 81 
+Percentage of iterations completed: 82 
+Percentage of iterations completed: 83 
+Percentage of iterations completed: 84 
+Percentage of iterations completed: 85 
+Percentage of iterations completed: 86 
+Percentage of iterations completed: 87 
+Percentage of iterations completed: 88 
+Percentage of iterations completed: 89 
+Percentage of iterations completed: 90 
+Percentage of iterations completed: 91 
+Percentage of iterations completed: 92 
+Percentage of iterations completed: 93 
+Percentage of iterations completed: 94 
+Percentage of iterations completed: 95 
+Percentage of iterations completed: 96 
+Percentage of iterations completed: 97 
+Percentage of iterations completed: 98 
+Percentage of iterations completed: 99 
+Percentage of iterations completed: 100 
+\end{Soutput}
+\end{Schunk}
+\normalsize
+The result of the network estimation function is stored in \Robject{network.toy.estimation}. This object has 3 items: \Robject{Algorithm.results}, \Robject{Set.names} and \Robject{Gene.names}. The object \Robject{Algorithm.results} containes 6 different results: \Robject{Gene.network}, \Robject{Set.network}, \Robject{BIC.gene}, \Robject{BIC.set}, \Robject{RSS.gene} and \Robject{RSS.set}. The result \Robject{Gene.network} correspond to the matrix associated to the gene network. The rows correspond to the objective nodes and the columns to the source nodes. The entries of this matrix are the number of times each source node was a predictor of the objective node. The result \Robject{Set.network} correspond to the matrix associated to the gene set network. The rows correspond to the objective nodes and the columns to the source nodes. The entries of this matrix are the number of times each source node was a predictor of the objective node. \Robject{BIC.gene} corresponds to the overall BIC of the gene network for each iteration. \Robject{BIC.set} corresponds to the overall BIC of the gene set network for each iteration. \Robject{RSS.gene} corresponds to the overall residual sum of squares (RSS) of the gene network for each iteration. \Robject{RSS.set} corresponds to the overall RSS of the gene set network for each iteration. Finally \Robject{Set.names} and \Robject{Gene.names} corrspon to the names of the nodes on the gene set and gene network respectively.
+%------------------------------------------------------------
+\subsubsection{Network estimation}
+%------------------------------------------------------------ 
+To analyze the performance of the network one can plot the \Robject{RSS.gene} or the \Robject{BIC.set}. The following are examples of such commands:
+\footnotesize
+\begin{Schunk}
+\begin{Sinput}
+> library(FunctionalNetworks)
+> data(data.4.toy.network,package="FunctionalNetworks")
+> data(bic.4.toy.network,package="FunctionalNetworks")
+> nsim=1000
+> burn=100
+> network.toy.estimation=network.estimation(nsim,burn,data.4.toy.network,bic.4.toy.network)
+\end{Sinput}
+\begin{Soutput}
+Percentage of iterations completed: 1 
+Percentage of iterations completed: 2 
+Percentage of iterations completed: 3 
+Percentage of iterations completed: 4 
+Percentage of iterations completed: 5 
+Percentage of iterations completed: 6 
+Percentage of iterations completed: 7 
+Percentage of iterations completed: 8 
+Percentage of iterations completed: 9 
+Percentage of iterations completed: 10 
+Percentage of iterations completed: 11 
+Percentage of iterations completed: 12 
+Percentage of iterations completed: 13 
+Percentage of iterations completed: 14 
+Percentage of iterations completed: 15 
+Percentage of iterations completed: 16 
+Percentage of iterations completed: 17 
+Percentage of iterations completed: 18 
+Percentage of iterations completed: 19 
+Percentage of iterations completed: 20 
+Percentage of iterations completed: 21 
+Percentage of iterations completed: 22 
+Percentage of iterations completed: 23 
+Percentage of iterations completed: 24 
+Percentage of iterations completed: 25 
+Percentage of iterations completed: 26 
+Percentage of iterations completed: 27 
+Percentage of iterations completed: 28 
+Percentage of iterations completed: 29 
+Percentage of iterations completed: 30 
+Percentage of iterations completed: 31 
+Percentage of iterations completed: 32 
+Percentage of iterations completed: 33 
+Percentage of iterations completed: 34 
+Percentage of iterations completed: 35 
+Percentage of iterations completed: 36 
+Percentage of iterations completed: 37 
+Percentage of iterations completed: 38 
+Percentage of iterations completed: 39 
+Percentage of iterations completed: 40 
+Percentage of iterations completed: 41 
+Percentage of iterations completed: 42 
+Percentage of iterations completed: 43 
+Percentage of iterations completed: 44 
+Percentage of iterations completed: 45 
+Percentage of iterations completed: 46 
+Percentage of iterations completed: 47 
+Percentage of iterations completed: 48 
+Percentage of iterations completed: 49 
+Percentage of iterations completed: 50 
+Percentage of iterations completed: 51 
+Percentage of iterations completed: 52 
+Percentage of iterations completed: 53 
+Percentage of iterations completed: 54 
+Percentage of iterations completed: 55 
+Percentage of iterations completed: 56 
+Percentage of iterations completed: 57 
+Percentage of iterations completed: 58 
+Percentage of iterations completed: 59 
+Percentage of iterations completed: 60 
+Percentage of iterations completed: 61 
+Percentage of iterations completed: 62 
+Percentage of iterations completed: 63 
+Percentage of iterations completed: 64 
+Percentage of iterations completed: 65 
+Percentage of iterations completed: 66 
+Percentage of iterations completed: 67 
+Percentage of iterations completed: 68 
+Percentage of iterations completed: 69 
+Percentage of iterations completed: 70 
+Percentage of iterations completed: 71 
+Percentage of iterations completed: 72 
+Percentage of iterations completed: 73 
+Percentage of iterations completed: 74 
+Percentage of iterations completed: 75 
+Percentage of iterations completed: 76 
+Percentage of iterations completed: 77 
+Percentage of iterations completed: 78 
+Percentage of iterations completed: 79 
+Percentage of iterations completed: 80 
+Percentage of iterations completed: 81 
+Percentage of iterations completed: 82 
+Percentage of iterations completed: 83 
+Percentage of iterations completed: 84 
+Percentage of iterations completed: 85 
+Percentage of iterations completed: 86 
+Percentage of iterations completed: 87 
+Percentage of iterations completed: 88 
+Percentage of iterations completed: 89 
+Percentage of iterations completed: 90 
+Percentage of iterations completed: 91 
+Percentage of iterations completed: 92 
+Percentage of iterations completed: 93 
+Percentage of iterations completed: 94 
+Percentage of iterations completed: 95 
+Percentage of iterations completed: 96 
+Percentage of iterations completed: 97 
+Percentage of iterations completed: 98 
+Percentage of iterations completed: 99 
+Percentage of iterations completed: 100 
+\end{Soutput}
+\begin{Sinput}
+> par(mfrow=c(2,1))
+> plot(network.toy.estimation$Algorithm.results$BIC.set,xlab="Iterations"
++      ,ylab="BIC",main="Overall BIC of the gene set network",type="l",lwd=3)
+> usr=par("usr")
+> rect(1000,usr[3],100,usr[4],col="gray80")
+> lines(network.toy.estimation$Algorithm.results$BIC.set,type="l",lwd=3)
+> legend(400,18000,legend=c("BIC","Iterations considered"),col=c("black","gray80")
++        ,lwd=c(3,0),fill=c("white","gray80"),border=c("white","black"),bg="white")
+> plot(network.toy.estimation$Algorithm.results$RSS.gene,xlab="Iterations"
++      ,ylab="RSS",main="Overall RSS of the gene network",type="l",lwd=3)
+> usr=par("usr")
+> rect(1000,usr[3],100,usr[4],col="gray80")
+> lines(network.toy.estimation$Algorithm.results$RSS.gene,type="l",lwd=3)
+> legend(400,4600,legend=c("RSS","Iterations considered"),col=c("black","gray80")
++        ,lwd=c(3,0),fill=c("white","gray80"),border=c("white","black"),bg="white")
+\end{Sinput}
+\end{Schunk}
+\normalsize
+%------------------------------------------------------------
+\section{Session Info}
+%------------------------------------------------------------ 
+\begin{itemize}\raggedright
+  \item R version 3.0.2 (2013-09-25), \verb|x86_64-apple-darwin10.8.0|
+  \item Locale: \verb|en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8|
+  \item Base packages: base, datasets, graphics, grDevices, methods,
+    parallel, stats, utils
+  \item Other packages: Biobase~2.20.1, BiocGenerics~0.6.0,
+    breastCancerVDX~1.0.5, FunctionalNetworks~0.99.6
+  \item Loaded via a namespace (and not attached): tools~3.0.2
+\end{itemize}\newpage
+%------------------------------------------------------------
+% BIBLIO
+%------------------------------------------------------------ 
+\begin{thebibliography}{10}
+\bibitem{Minn2007}
+Minn AJ, Gupta GP, Padua D, Bos P, Nguyen DX, Nuyten D, Kreike B, Zhang Y, Wang Y, Ishwaran H, Foekens JA, Van de Vijver M and Massagu\'{e} J:
+\newblock Lung Metastasis Genes Couple Breast Tumor Size and Metastatic Spread.
+\newblock \textit{PNAS}, \textbf{104(16)}, 6740-6745. 2007.
+
+\bibitem{Quiroz2013}
+Quiroz-Zarate A and  Quackenbush J
+\newblock XXXX: Biological functional networks \textit{Journal}  
+\newblock \textbf{Vol(Num):Page 1-Page N}. 2013.
+
+\bibitem{Wang2005}
+Wang Y, Klijn JGM, Zhang Y, Sieuwerts AM, Look MP, Yanh F, Talantov D, Timmermans M, Gelder, MEMG, Yu J, Jatkoe T, Berns EMJJ, Atkins D and Foekens JA:
+\newblock Gene-expression Profiles to Predict Distant Metastasis of Lymph-Node-Negative Primary Breast Cancer.
+\newblock \textit{Lancet}, \textbf{365}, 671-679. 2005.
+\end{thebibliography}
+
+\end{document}

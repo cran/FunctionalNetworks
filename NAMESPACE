@@ -1,0 +1,3 @@
+useDynLib(FunctionalNetworks)
+import("breastCancerVDX","Biobase")
+export(data.generation,bic.generation,network.estimation)
